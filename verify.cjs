@@ -1,0 +1,22 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const html=fs.readFileSync('index.html','utf8');
+const source=html.match(/<script>([\s\S]*?)<\/script>/)[1].replace(/init\(\);\s*$/,'');
+new vm.Script(source);
+const nodes=new Map();
+function node(id){if(!nodes.has(id))nodes.set(id,{value:id==='rCount'?'3':'0',innerHTML:'',textContent:'',hidden:false,dataset:{},classList:{add(){},remove(){},toggle(){}},setAttribute(){},querySelectorAll(){return []},querySelector(){return null},pause(){},play(){return Promise.resolve()},scrollIntoView(){}});return nodes.get(id);}
+const context=vm.createContext({document:{getElementById:node,querySelectorAll:()=>[]},window:{isSecureContext:true,scrollTo(){}},localStorage:{getItem:()=>null,setItem(){}},setTimeout,clearTimeout,AbortController,console,fetch:async url=>({ok:true,json:async()=>{if(url.endsWith('ar.muyassar'))throw Error('tafsir unavailable');return {code:200,data:{ayahs:[{numberInSurah:1,text:'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ',juz:1,page:1}]}}}})});
+vm.runInContext(source,context);
+(async()=>{
+ await vm.runInContext('loadSurah(1)',context);
+ assert.equal(vm.runInContext('st.verses.length',context),1,'Quran survives tafsir failure');
+ assert.equal(vm.runInContext('st.tafsir.length',context),0);
+ await vm.runInContext('loadSurah(999)',context);
+ assert.equal(vm.runInContext('st.n',context),1,'invalid selection ignored');
+ vm.runInContext("heard='بسم الله الرحمن الرحيم';check()",context);
+ assert.equal(node('nPct').textContent,'100%');
+ vm.runInContext("heard='بسم كلمة الله الرحمن الرحيم';check()",context);
+ assert.equal(node('nPct').textContent,'80%','insertions reduce score');
+ vm.runInContext('cancelRecitation()',context);
+ assert.equal(node('rResult').hidden,true);
+ console.log('PASS: syntax, independent tafsir failure, selection validation, exact word alignment, inserted words, recitation reset');
+})().catch(e=>{console.error(e);process.exitCode=1});
