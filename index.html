@@ -66,8 +66,8 @@ h1{margin:0;font-size:clamp(28px,5vw,44px);line-height:1.15;font-weight:800;text
 .v[aria-pressed="true"]{background:var(--tone-soft);box-shadow:inset 0 -3px 0 var(--tone)}
 .v.playing{background:var(--lav-soft);box-shadow:inset 0 -3px 0 var(--lav)}
 .mk{color:var(--tone-ink);margin:0 6px;font-size:.85em}
-.hl{border-radius:8px;padding:0 3px;-webkit-box-decoration-break:clone;box-decoration-break:clone}
-.nocolor .hl{background:none!important;padding:0}
+.hl{color:#292633;border-radius:8px;padding:0 3px;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.nocolor .hl{background:none!important;color:inherit;padding:0}
 .chip{display:flex;align-items:center;gap:10px;background:var(--paper);outline:1px solid var(--line);border-radius:14px;padding:8px 12px}
 .sw{width:18px;height:18px;border-radius:6px;flex-shrink:0}
 .q{font-family:var(--quran);font-size:20px;line-height:1.9}
@@ -237,7 +237,8 @@ const pad=n=>String(n).padStart(3,'0');
 const audioUrl=(s,a)=>`https://everyayah.com/data/Alafasy_128kbps/${pad(s)}${pad(a)}.mp3`;
 const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const norm=w=>w.replace(/[ؐ-ًؚ-ٰٟۖ-ۭ࣓-ࣿـ]/g,'').replace(/[ٱأإآ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي').replace(/[^ء-ي]/g,'');
-const COLORS=['var(--m1)','var(--m2)','var(--m3)','var(--m4)','var(--m5)','var(--m6)'];
+const wordKey=w=>w.replace(/[ؐ-ًؚ-ٰٟۖ-ۭ࣓-ࣿـ]/g,'').replace(/ٱ/g,'ا').replace(/[^ء-ي]/g,'');
+let wordIndex=new Map();
 const NUZUL={
   1:'لا يُعرف لهذه الآية سبب نزول خاص. والفاتحة سورة مكية، وهي «أم الكتاب» التي تُقرأ في كل ركعة.',
   112:'قال المشركون للنبي ﷺ: انسُب لنا ربك وصِفه لنا، فأنزل الله هذه السورة. (رواه الترمذي عن أُبيّ بن كعب رضي الله عنه).'
@@ -328,42 +329,42 @@ async function loadSurah(n,sel=0){
 async function buildIndex(){
   try{
     const q=await getJSON(API+'/quran/quran-uthmani');
-    const idx=new Map();refText={};
+    const words=new Map();
     q.surahs.forEach(s=>s.ayahs.forEach(x=>{
-      const c=tokens(s.number,x.numberInSurah,x.text).map(t=>t.n).filter(Boolean);
       const ref=s.number+':'+x.numberInSurah;
-      const seen=new Set();
-      for(let i=0;i+4<=c.length;i++){
-        const k=c.slice(i,i+4).join(' ');
-        if(k.length<12||seen.has(k))continue;seen.add(k);
-        let arr=idx.get(k);if(!arr)idx.set(k,arr=[]);arr.push(ref);
-      }
+      tokens(s.number,x.numberInSurah,x.text).forEach(t=>{
+        const key=wordKey(t.d);if(!key)return;
+        if(!words.has(key))words.set(key,{count:0,refs:new Set()});
+        const entry=words.get(key);entry.count++;entry.refs.add(ref);
+      });
     }));
-    index=idx;$('simStatus').textContent='كل لون يجمع العبارات المتشابهة: عبارة من أربع كلمات أو أكثر تتكرر في موضع آخر من المصحف.';
+    wordIndex=words;assignWordColors([...words.keys()]);
+    index=words;$('simStatus').textContent='كل كلمة متكررة لها لون ثابت في المصحف كله. الأخضر مخصص لكلمة «الرحمن». قد تتقارب درجات الألوان لكثرة الكلمات؛ اضغط الآية لعرض الكلمات ومواضعها.';
     renderMushaf();renderPanel();
   }catch(e){$('simStatus').textContent='تعذّر تجهيز المتشابهات الآن. أعد تحميل الصفحة لاحقًا.';}
 }
 
 /* ---------- similar phrases ---------- */
 function spansOf(vi){
-  const v=st.verses[vi],ref=st.n+':'+v.a;
-  const content=v.tk.map((t,i)=>t.n?i:-1).filter(i=>i>=0);
-  const mark=new Array(v.tk.length).fill(null),spans=[];
-  if(!index)return {mark,spans};
-  let cur=null;
-  for(let j=0;j+4<=content.length;j++){
-    const k=content.slice(j,j+4).map(i=>v.tk[i].n).join(' ');
-    const others=(index.get(k)||[]).filter(r=>r!==ref);
-    if(!others.length){cur=null;continue;}
-    if(cur&&cur.endJ>=j){cur.endJ=j+3;others.forEach(r=>cur.refs.add(r));}
-    else{cur={key:k,startJ:j,endJ:j+3,refs:new Set(others)};spans.push(cur);}
-  }
-  spans.forEach((sp,si)=>{for(let j=sp.startJ;j<=sp.endJ;j++)mark[content[j]]=si;
-    const from=content[sp.startJ],to=content[sp.endJ];for(let i=from;i<=to;i++)mark[i]=si;});
+  const v=st.verses[vi],ref=st.n+':'+v.a,spans=[],seen=new Map();
+  const mark=v.tk.map(t=>{
+    const key=wordKey(t.d),entry=wordIndex.get(key);
+    if(!entry||entry.count<2)return null;
+    if(!seen.has(key)){seen.set(key,spans.length);spans.push({key,text:t.d,refs:new Set([...entry.refs].filter(r=>r!==ref))});}
+    return seen.get(key);
+  });
   return {mark,spans};
 }
 const colorMap=new Map();
-function colorFor(key){if(!colorMap.has(key))colorMap.set(key,COLORS[colorMap.size%COLORS.length]);return colorMap.get(key);}
+function assignWordColors(keys){
+  colorMap.clear();colorMap.set('الرحمن','hsl(135 60% 80%)');
+  // Sorted full-corpus keys make colors independent of navigation and request order.
+  // Keep every other hue outside the green band, without cycling a small palette.
+  [...new Set(keys)].sort().filter(k=>k!=='الرحمن').forEach((key,i)=>{
+    colorMap.set(key,`hsl(${(170+(i*137.50776405003785)%270).toFixed(9)} 72% 84%)`);
+  });
+}
+function colorFor(key){return colorMap.get(key)||'transparent';}
 
 /* ---------- render: read view ---------- */
 function verseHTML(vi){
@@ -393,12 +394,11 @@ function renderPanel(){
   $('selNuzul').textContent=NUZUL[st.n]||NO_NUZUL;
   if(!index){$('selSim').innerHTML='<p class="small">جاري تجهيز المتشابهات…</p>';return;}
   const {spans}=spansOf(st.sel);
-  if(!spans.length){$('selSim').innerHTML='<p class="small">لا توجد عبارة من أربع كلمات تتكرر في موضع آخر.</p>';return;}
+  if(!spans.length){$('selSim').innerHTML='<p class="small">لا توجد كلمات متكررة في هذه الآية.</p>';return;}
   $('selSim').innerHTML=spans.map(sp=>{
-    const content=v.tk.filter(t=>t.n);
-    const text=content.slice(sp.startJ,sp.endJ+1).map(t=>t.d).join(' ');
+    const text=sp.text;
     const refs=[...sp.refs],shown=refs.slice(0,8);
-    return `<div class="chip" style="align-items:flex-start"><span class="sw" style="margin-top:8px;background:${colorFor(sp.key)}"></span><div style="display:flex;flex-direction:column;gap:6px;min-width:0"><span class="q">${esc(text)}</span><div class="pills">${shown.map(r=>`<button class="loc" data-ref="${r}">${esc(refLabel(r))}</button>`).join('')}${refs.length>8?`<span class="where">و ${refs.length-8} موضعًا آخر</span>`:''}</div></div></div>`;
+    return `<div class="chip" style="align-items:flex-start"><span class="sw" style="margin-top:8px;background:${colorFor(sp.key)}"></span><div style="display:flex;flex-direction:column;gap:6px;min-width:0"><span class="q hl" style="background:${colorFor(sp.key)}">${esc(text)}</span><div class="pills">${shown.map(r=>`<button class="loc" data-ref="${r}">${esc(refLabel(r))}</button>`).join('')}${refs.length>8?`<span class="where">و ${refs.length-8} موضعًا آخر</span>`:''}${!refs.length?'<span class="small">تتكرر داخل الآية نفسها</span>':''}</div></div></div>`;
   }).join('');
   $('selSim').querySelectorAll('[data-ref]').forEach(b=>b.onclick=()=>{const [s,a]=b.dataset.ref.split(':').map(Number);goTo(s,a);});
 }
