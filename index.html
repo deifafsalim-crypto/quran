@@ -329,29 +329,17 @@ async function loadSurah(n,sel=0){
 async function buildIndex(){
   try{
     const q=await getJSON(API+'/quran/quran-uthmani');
-    const seeds=new Map(),shortVerses=new Map();
+    const verses=new Map();
     q.surahs.forEach(s=>s.ayahs.forEach(x=>{
       const ref=s.number+':'+x.numberInSurah;
       const words=tokens(s.number,x.numberInSurah,x.text).map(t=>wordKey(t.d)).filter(Boolean);
-      if(words.length>=2&&words.length<4){const key=words.join(' ');if(!shortVerses.has(key))shortVerses.set(key,new Set());shortVerses.get(key).add(ref);}
-      for(let i=0;i+4<=words.length;i++){
-        const key=words.slice(i,i+4).join(' ');
-        if(!seeds.has(key))seeds.set(key,[]);
-        seeds.get(key).push({ref,words,end:i+4});
-      }
+      const key=words.join(' ');if(!key)return;
+      if(!verses.has(key))verses.set(key,new Set());
+      verses.get(key).add(ref);
     }));
-    const phrases=new Map(),queue=[...seeds.entries()];
-    while(queue.length){
-      const [key,occurrences]=queue.pop(),refs=new Set(occurrences.map(o=>o.ref));
-      if(refs.size<2)continue;
-      phrases.set(key,refs);
-      const next=new Map();
-      occurrences.forEach(o=>{if(o.end>=o.words.length)return;const k=key+' '+o.words[o.end];if(!next.has(k))next.set(k,[]);next.get(k).push({...o,end:o.end+1});});
-      next.forEach((occ,k)=>queue.push([k,occ]));
-    }
-    shortVerses.forEach((refs,key)=>{if(refs.size>1)phrases.set(key,refs);});
+    const phrases=new Map([...verses].filter(([key,refs])=>refs.size>1));
     phraseIndex=phrases;assignPhraseColors([...phrases.keys()]);
-    index=phrases;$('simStatus').textContent='العبارات المتشابهة بين الآيات لها ألوان ثابتة في المصحف كله؛ العبارة نفسها باللون نفسه. نعرض أطول عبارة متطابقة دون دمج العبارات المختلفة. قد تتقارب بعض درجات الألوان.';
+    index=phrases;$('simStatus').textContent='الآية المتكررة كاملة لها لون واحد في جميع مواضعها. لكل آية مختلفة لون خاص، والآيات غير المتكررة بلا تلوين.';
     renderMushaf();renderPanel();
   }catch(e){$('simStatus').textContent='تعذّر تجهيز المتشابهات الآن. أعد تحميل الصفحة لاحقًا.';}
 }
@@ -359,17 +347,10 @@ async function buildIndex(){
 /* ---------- similar phrases ---------- */
 function spansOf(vi){
   const v=st.verses[vi],ref=st.n+':'+v.a,spans=[],mark=v.tk.map(()=>null);
-  const content=v.tk.map((t,i)=>({key:wordKey(t.d),i})).filter(t=>t.key);
-  for(let start=0;start<content.length;start++){
-    for(let end=content.length;end>start+1;end--){
-      if(end-start<4&&(start!==0||end!==content.length))continue;
-      const key=content.slice(start,end).map(t=>t.key).join(' '),refs=phraseIndex.get(key);
-      if(!refs||!refs.has(ref)||refs.size<2)continue;
-      const from=content[start].i,to=content[end-1].i;
-      const si=spans.length;spans.push({key,text:v.tk.slice(from,to+1).map(t=>t.d).join(' '),refs:new Set([...refs].filter(r=>r!==ref))});
-      for(let i=from;i<=to;i++)mark[i]=si;
-      start=end-1;break;
-    }
+  const key=v.tk.map(t=>wordKey(t.d)).filter(Boolean).join(' '),refs=phraseIndex.get(key);
+  if(refs&&refs.has(ref)&&refs.size>1){
+    spans.push({key,text:v.tk.map(t=>t.d).join(' '),refs:new Set([...refs].filter(r=>r!==ref))});
+    mark.fill(0);
   }
   return {mark,spans};
 }
@@ -378,7 +359,7 @@ function assignPhraseColors(keys){
   colorMap.clear();
   // Sorted full-corpus keys make colors independent of navigation and request order.
   [...new Set(keys)].sort().forEach((key,i)=>{
-    colorMap.set(key,`hsl(${((i*137.50776405003785)%360).toFixed(9)} 72% 84%)`);
+    colorMap.set(key,`hsl(${((i*137.50776405003785)%360).toFixed(9)} ${60+(i%4)*8}% ${72+(Math.floor(i/4)%4)*5}%)`);
   });
 }
 function colorFor(key){return colorMap.get(key)||'transparent';}
@@ -411,7 +392,7 @@ function renderPanel(){
   $('selNuzul').textContent=NUZUL[st.n]||NO_NUZUL;
   if(!index){$('selSim').innerHTML='<p class="small">جاري تجهيز المتشابهات…</p>';return;}
   const {spans}=spansOf(st.sel);
-  if(!spans.length){$('selSim').innerHTML='<p class="small">لا توجد عبارة متطابقة من أربع كلمات أو آية قصيرة متكررة في موضع آخر.</p>';return;}
+  if(!spans.length){$('selSim').innerHTML='<p class="small">هذه الآية لا تتكرر كاملة في موضع آخر.</p>';return;}
   $('selSim').innerHTML=spans.map(sp=>{
     const text=sp.text;
     const refs=[...sp.refs],shown=refs.slice(0,8);
