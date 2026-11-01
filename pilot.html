@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>تجربة دقة المعلمة</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Baloo+Bhaijaan+2:wght@400;600;700&display=swap"><link rel="stylesheet" href="pilot.css">
+<script src="pilot-core.js" defer></script><script src="pilot.js" defer></script></head>
+<body><main>
+<nav><a href="index.html">← العودة للمصحف</a><span>تجربة أولية · رواية حفص</span></nav>
+<header><h1>نختبر الدقة قبل أن نعتمدها</h1><p>سجّل آية قصيرة، ثم اضغط الكلمات لتراجعها معلّمة التجويد. بعد توفير محلّل صوتي نقارن نتيجته بتقييمها.</p></header>
+<aside class="notice"><strong>لا يوجد محلّل صوتي متصل حاليًا.</strong> لا يُستنتج خطأ حركة من نص المتصفح. التسجيلات والملاحظات تُحفظ على هذا المتصفح فقط؛ نزّل نسخة قبل مسح بياناته. لا تُرفع التسجيلات إلى GitHub.</aside>
+<section aria-labelledby="recordTitle"><h2 id="recordTitle">١. تسجيل العينة</h2>
+<p>ابدأ بـ١٢ تسجيلًا: ٤ قراءات صحيحة، و٤ أخطاء حركات، و٤ أخطاء شدّة، بإشراف معلّمة. نوع العينة المقصود ليس حكمًا على القراءة الفعلية.</p>
+<div class="row"><label>السورة <select id="surah"><option value="1">الفاتحة</option><option value="112">الإخلاص</option><option value="113">الفلق</option><option value="114">الناس</option></select></label>
+<label>الآية <select id="ayah"></select></label><label>العينة المقصودة <select id="case"><option value="clean">قراءة صحيحة</option><option value="vowel">خطأ حركة</option><option value="shadda">خطأ شدّة</option></select></label>
+<button id="referencePlay" disabled>استمع للآية الصحيحة</button></div>
+<p id="reference" class="quran" aria-live="polite">جارٍ تحميل الآية…</p>
+<div class="row"><button id="record" disabled>ابدأ التسجيل · حتى ١٥ ثانية</button><button id="stop" disabled>إنهاء وحفظ</button>
+<label class="file">أو اختر تسجيلًا <input id="upload" type="file" accept="audio/*" disabled></label></div>
+<p class="small">يفضل مكان هادئ، وتلاوة واضحة دون تشغيل صوت القارئ أثناء التسجيل. أذونات المايك مطلوبة للتسجيل فقط.</p>
+</section>
+<p id="status" role="status" aria-live="polite"></p>
+<section aria-labelledby="samplesTitle"><h2 id="samplesTitle">٢. التسجيلات ومراجعة الكلمات</h2><p id="empty">لا توجد تسجيلات بعد.</p><div id="samples"></div></section>
+<section aria-labelledby="reportTitle"><h2 id="reportTitle">٣. تقرير المقارنة</h2><div id="report"></div><p class="small">غياب نتيجة آلية أو انخفاض الثقة يعني «غير محسوم»، وليس «صحيحًا». حد الثقة ٩٠٪ تجريبي، ولا يعني دقة مثبتة؛ يُراجع بعد جمع العينات. النتائج تخص هذه العينة الصغيرة فقط.</p>
+<div class="row"><button id="export" disabled>تنزيل التسجيلات والتقييمات</button><label class="file">استيراد نسخة التجربة <input id="restore" type="file" accept="application/json,.json"></label></div>
+<p class="small">الملف المنزّل يحتوي صوتك وتقييماتك. شاركه فقط مع المعلّمة أو الجهة التي تختارها. يمكن إعادة فتحه هنا على جهاز آخر.</p></section>
+<details><summary>كيف نضيف نتائج التحليل لاحقًا؟</summary><p>لكل تسجيل زر لتحميل نتيجة المحلّل. يجب أن تتطابق النتيجة مع بصمة التسجيل ونص الآية وترقيم الكلمات. لا توجد بيانات تجريبية تُعرض كأنها تحليل حقيقي.</p><a href="pilot-guide.html">دليل التجربة وصيغة النتائج</a></details>
+</main>
+<dialog id="wordDialog" aria-labelledby="wordTitle"><form id="reviewForm"><h2 id="wordTitle"></h2><p id="wordRef"></p><div class="row"><button type="button" id="hearSample">اسمع تسجيلك كاملًا</button><button type="button" id="hearReference">اسمع الآية الصحيحة</button></div>
+<h3>اقتراح التحليل الآلي</h3><div id="analysisDetail"></div>
+<h3>تقييم معلّمة التجويد</h3><p class="small">هذه الخانات تملؤها المعلّمة بعد الاستماع؛ ليست إجابة آلية.</p>
+<label>الحكم <select id="reviewStatus"><option value="uncertain">غير محسوم / يحتاج إعادة</option><option value="correct">صحيح</option><option value="error">يوجد خطأ</option></select></label>
+<div id="errorFields" hidden><label>نوع الخطأ <select id="reviewType"><option value="vowel">حركة / تشكيل</option><option value="shadda">شدّة</option><option value="letter">حرف / نطق</option><option value="missing">كلمة ناقصة</option><option value="tajweed">حكم تجويد</option></select></label>
+<label>ما سمعته المعلّمة <input id="reviewHeard" maxlength="500" placeholder="اكتبي النطق الفعلي بالتشكيل إن أمكن"></label>
+<label>شرح التصحيح <textarea id="reviewExplanation" maxlength="2000" rows="3"></textarea></label></div>
+<label>اسم أو رمز المراجِعة <input id="reviewer" required maxlength="80" autocomplete="off"></label>
+<div class="row"><button type="submit">حفظ المراجعة</button><button id="closeDialog" type="button">إغلاق</button></div><p id="dialogError" role="alert"></p></form></dialog>
+<audio id="audio" preload="none"></audio>
+</body></html>

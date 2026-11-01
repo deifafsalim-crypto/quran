@@ -22,11 +22,14 @@ jobs:
         with:
           node-version: '22'
       - run: node verify.cjs
+      - run: node --test pilot-core.test.cjs
+      - run: node --check pilot.js
       - uses: actions/configure-pages@v5
       - name: Prepare public files
         run: |
           mkdir public
           cp index.html public/
+          cp pilot.html pilot.css pilot.js pilot-core.js pilot-guide.html public/
           cp *.pdf public/
       - uses: actions/upload-pages-artifact@v3
         with:
