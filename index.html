@@ -139,7 +139,13 @@ p{margin:0}
     <div class="pills">
       <button class="btn" id="playAll">▶ تشغيل السورة</button>
       <button class="btn" id="toggleColors" aria-pressed="true">تلوين المتشابهات</button>
+      <button class="btn" id="openKahf">حفظ الكهف ١–٨</button>
     </div>
+  </div>
+  <div class="callout" id="kahfPractice" hidden>
+    <b>حفظ سورة الكهف · الآيات ١ إلى ٨</b>
+    <p class="small">استمع وردّد مع العفاسي. تعود القراءة إلى الآية الأولى بعد الثامنة، وتستمر حتى تضغط إيقاف.</p>
+    <div class="pills"><button class="btn dark" id="kahfRepeat" aria-pressed="false" disabled>▶ ابدأ تكرار الآيات ١–٨</button><span id="kahfStatus" role="status" aria-live="polite">جاهز للتكرار</span></div>
   </div>
   <div class="cols">
     <section class="shell main" aria-label="نص السورة">
@@ -277,6 +283,7 @@ async function getJSON(url,raw){
   }finally{clearTimeout(timer);}
 }
 let loadVersion=0;
+let kahfLoop=false,kahfRounds=0,audioVersion=0;
 function cancelRecitation(){if(rec){rec.onend=null;rec.abort();rec=null;}$('mic').classList.remove('on');$('mic').setAttribute('aria-label','ابدأ التسميع');heard='';result=null;$('rResult').hidden=true;$('rStatus').textContent='اضغط المايك وابدأ القراءة';}
 
 const sName=n=>st.surahs[n-1]?.name||'';
@@ -294,6 +301,7 @@ function tokens(s,a,text){
 async function init(){
   $('surahSel').innerHTML=st.surahs.map(s=>`<option value="${s.number}">${s.number}. ${esc(sName(s.number))}</option>`).join('');
   let start=1;try{start=+localStorage.getItem('quran-surah')||1;}catch(e){}
+  if(window.location?.hash==='#kahf')start=18;
   loadSurah(Number.isInteger(start)&&start>=1&&start<=114?start:1);
   buildIndex();
 }
@@ -304,6 +312,7 @@ async function loadSurah(n,sel=0){
   try{localStorage.setItem('quran-surah',n);}catch(e){}
   const s=st.surahs[n-1];
   $('surahSel').value=n;$('prevS').disabled=n<=1;$('nextS').disabled=n>=114;$('playAll').disabled=true;$('playOne').disabled=true;
+  $('kahfPractice').hidden=n!==18;$('kahfRepeat').disabled=true;
   $('sName').textContent='سورة '+s.name;$('sMeta').textContent=`${s.numberOfAyahs} آية`;$('basmala').hidden=(n===1||n===9);
   $('mushaf').innerHTML='<p class="msg">جاري تحميل السورة…</p>';
   let verses=null,tafsir=[];
@@ -324,6 +333,7 @@ async function loadSurah(n,sel=0){
   st.verses=verses;st.tafsir=tafsir;
   $('sMeta').textContent=`${s.numberOfAyahs} آية`+(verses[0].juz?` · الجزء ${verses[0].juz}`:'');
   $('playAll').disabled=false;$('playOne').disabled=false;
+  $('kahfRepeat').disabled=n!==18||verses.length<8;
   renderMushaf();renderPanel();$('rFrom').value=st.sel;renderRecite();
   if(st.view==='recite')loadTajweed();
 }
@@ -407,23 +417,38 @@ async function goTo(s,a){
 }
 
 /* ---------- audio (Mishary Alafasy) ---------- */
-function stopAudio(){player.pause();st.playingAll=false;st.playIdx=-1;$('playAll').textContent='▶ تشغيل السورة';$('playAll').setAttribute('aria-pressed','false');
+function stopAudio(){audioVersion++;player.pause();kahfLoop=false;$('kahfRepeat').textContent='▶ ابدأ تكرار الآيات ١–٨';$('kahfRepeat').setAttribute('aria-pressed','false');$('kahfStatus').textContent='متوقف · اضغط ابدأ للتكرار';st.playingAll=false;st.playIdx=-1;$('playAll').textContent='▶ تشغيل السورة';$('playAll').setAttribute('aria-pressed','false');
   $('mushaf').querySelectorAll('.v.playing').forEach(b=>b.classList.remove('playing'));}
 function playVerse(i){
   if(!st.verses[i]){stopAudio();return;}
-  const version=loadVersion;st.playIdx=i;player.src=audioUrl(st.n,st.verses[i].a);
-  player.play().catch(()=>{if(version!==loadVersion)return;$('selLabel').textContent='تعذّر تشغيل الصوت، تأكد من الاتصال';stopAudio();});
+  const version=loadVersion,request=++audioVersion;st.playIdx=i;player.src=audioUrl(st.n,st.verses[i].a);
+  player.play().catch(()=>{if(version!==loadVersion||request!==audioVersion)return;$('selLabel').textContent='تعذّر تشغيل الصوت، تأكد من الاتصال';stopAudio();});
+  if(kahfLoop)$('kahfStatus').textContent=`الدورة ${digits(kahfRounds)} · الآية ${digits(i+1)} من ٨`;
   $('mushaf').querySelectorAll('.v').forEach(b=>b.classList.toggle('playing',+b.dataset.i===i));
-  if(st.playingAll){const el=$('mushaf').querySelector(`[data-i="${i}"]`);if(el)el.scrollIntoView({block:'center',behavior:'smooth'});}
+  if(st.playingAll||kahfLoop){const el=$('mushaf').querySelector(`[data-i="${i}"]`);if(el)el.scrollIntoView({block:'center',behavior:'smooth'});}
 }
 player.onerror=()=>{if(player.src){$('selLabel').textContent='تعذّر تشغيل الصوت، تأكدي من الاتصال';stopAudio();}};
 player.onended=()=>{
+  if(kahfLoop){
+    if(st.n!==18){stopAudio();return;}
+    const next=st.playIdx>=7?0:st.playIdx+1;
+    if(next===0)kahfRounds++;
+    selectVerse(next);playVerse(next);return;
+  }
   if(st.playingAll&&st.playIdx<st.verses.length-1){selectVerse(st.playIdx+1);playVerse(st.playIdx+1);}
   else stopAudio();
 };
-$('playOne').onclick=()=>{st.playingAll=false;playVerse(st.sel);};
+$('playOne').onclick=()=>{stopAudio();playVerse(st.sel);};
+$('openKahf').onclick=async()=>{setView('read');if(st.n!==18||st.verses.length<8)await loadSurah(18);$('kahfPractice').hidden=false;$('kahfPractice').scrollIntoView({block:'center',behavior:'smooth'});};
+$('kahfRepeat').onclick=()=>{
+  if(kahfLoop){stopAudio();return;}
+  if(st.n!==18||st.verses.length<8)return;
+  cancelRecitation();stopAudio();kahfLoop=true;kahfRounds=1;
+  $('kahfRepeat').textContent='⏹ إيقاف التكرار';$('kahfRepeat').setAttribute('aria-pressed','true');selectVerse(0);playVerse(0);
+};
 $('playAll').onclick=()=>{
   if(st.playingAll){stopAudio();return;}
+  stopAudio();
   st.playingAll=true;$('playAll').textContent='⏸ إيقاف';$('playAll').setAttribute('aria-pressed','true');playVerse(st.sel);
 };
 $('toggleColors').onclick=e=>{
